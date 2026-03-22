@@ -844,7 +844,12 @@ class YouTube:
         selector_preview = ", ".join([f"{item[0]}={item[1]}" for item in selectors])
         raise RuntimeError(f"Could not locate required YouTube element. Tried: {selector_preview}") from last_error
 
-    def _set_textbox_value(self, element: Any, value: str) -> None:
+    def _set_textbox_value(
+        self,
+        element: Any,
+        value: str,
+        selectors: List[tuple[str, str]] | None = None,
+    ) -> None:
         """
         Sets the value of a contenteditable textbox in YouTube Studio.
 
@@ -855,10 +860,81 @@ class YouTube:
         Returns:
             None
         """
-        element.click()
-        element.send_keys(Keys.CONTROL, "a")
-        element.send_keys(Keys.BACKSPACE)
-        element.send_keys(value)
+        text_value = str(value or "")
+        normalized = text_value.strip()
+        last_error: Exception | None = None
+
+        for _ in range(3):
+            try:
+                self.browser.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+
+                # YouTube hashtag suggestions can overlay the editable area and intercept clicks.
+                try:
+                    element.click()
+                except Exception:
+                    self.browser.execute_script("arguments[0].focus();", element)
+
+                try:
+                    element.send_keys(Keys.ESCAPE)
+                except Exception:
+                    pass
+
+                element.send_keys(Keys.CONTROL, "a")
+                element.send_keys(Keys.BACKSPACE)
+                if text_value:
+                    element.send_keys(text_value)
+
+                current_value = (
+                    element.get_attribute("innerText")
+                    or element.get_attribute("textContent")
+                    or element.text
+                    or ""
+                ).strip()
+                if current_value == normalized:
+                    return
+
+                raise RuntimeError("Textbox value mismatch after keyboard input.")
+            except Exception as exc:
+                last_error = exc
+                try:
+                    self.browser.find_element(By.TAG_NAME, "body").send_keys(Keys.ESCAPE)
+                except Exception:
+                    pass
+
+                # Fallback to JS assignment to avoid click-interception overlays.
+                try:
+                    self.browser.execute_script(
+                        """
+                        const target = arguments[0];
+                        const nextValue = arguments[1];
+                        target.focus();
+                        target.textContent = nextValue;
+                        target.dispatchEvent(new Event('input', { bubbles: true }));
+                        target.dispatchEvent(new Event('change', { bubbles: true }));
+                        """,
+                        element,
+                        text_value,
+                    )
+                    current_value = (
+                        element.get_attribute("innerText")
+                        or element.get_attribute("textContent")
+                        or element.text
+                        or ""
+                    ).strip()
+                    if current_value == normalized:
+                        return
+                except Exception as js_exc:
+                    last_error = js_exc
+
+                if selectors:
+                    try:
+                        element = self._wait_for_any(selectors, clickable=False, timeout=20)
+                    except Exception:
+                        pass
+
+                time.sleep(0.4)
+
+        raise RuntimeError(f"Could not set textbox value: {last_error}") from last_error
 
     def _extract_uploaded_video_url(self) -> str | None:
         """
@@ -961,33 +1037,43 @@ class YouTube:
             if verbose:
                 info("\t=> Video file selected.")
 
+            title_selectors = [
+                (By.CSS_SELECTOR, "ytcp-social-suggestions-textbox#title-textarea #textbox"),
+                (By.CSS_SELECTOR, "#title-textarea #textbox"),
+                (By.XPATH, "(//*[@id='textbox'])[1]"),
+            ]
             title_el = self._wait_for_any(
-                [
-                    (By.CSS_SELECTOR, "ytcp-social-suggestions-textbox#title-textarea #textbox"),
-                    (By.CSS_SELECTOR, "#title-textarea #textbox"),
-                    (By.XPATH, "(//*[@id='textbox'])[1]"),
-                ],
+                title_selectors,
                 clickable=True,
                 timeout=90,
             )
 
             if verbose:
                 info("\t=> Setting title...")
-            self._set_textbox_value(title_el, str(self.metadata["title"])[:100])
+            self._set_textbox_value(
+                title_el,
+                str(self.metadata["title"])[:100],
+                selectors=title_selectors,
+            )
 
             if verbose:
                 info("\t=> Setting description...")
 
+            description_selectors = [
+                (By.CSS_SELECTOR, "ytcp-social-suggestions-textbox#description-textarea #textbox"),
+                (By.CSS_SELECTOR, "#description-textarea #textbox"),
+                (By.XPATH, "(//*[@id='textbox'])[2]"),
+            ]
             description_el = self._wait_for_any(
-                [
-                    (By.CSS_SELECTOR, "ytcp-social-suggestions-textbox#description-textarea #textbox"),
-                    (By.CSS_SELECTOR, "#description-textarea #textbox"),
-                    (By.XPATH, "(//*[@id='textbox'])[2]"),
-                ],
+                description_selectors,
                 clickable=True,
                 timeout=90,
             )
-            self._set_textbox_value(description_el, str(self.metadata["description"]))
+            self._set_textbox_value(
+                description_el,
+                str(self.metadata["description"]),
+                selectors=description_selectors,
+            )
 
             # Set `made for kids` option
             if verbose:
