@@ -1,0 +1,23 @@
+{
+  "name": "api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/api",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": ".",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_api.ps1"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": ".",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_api.ps1"
+      }
+    }
+  },
+  "tags": ["scope:api"]
+}

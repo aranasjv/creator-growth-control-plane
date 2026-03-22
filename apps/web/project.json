@@ -1,0 +1,37 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/web",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web",
+        "command": "..\\..\\node_modules\\.bin\\next.cmd dev"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web",
+        "command": "..\\..\\node_modules\\.bin\\next.cmd build"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web",
+        "command": "..\\..\\node_modules\\.bin\\next.cmd start"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "apps/web",
+        "command": "..\\..\\node_modules\\.bin\\tsc.cmd -p tsconfig.json --noEmit"
+      }
+    }
+  },
+  "tags": ["scope:web"]
+}

@@ -1,0 +1,68 @@
+name: tech-infra
+services:
+  postgres:
+    image: postgres:latest
+    container_name: tech-infra-postgres
+    environment:
+      POSTGRES_DB: creator_growth_control_plane
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - tech_infra_postgres_root:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d creator_growth_control_plane"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tech_infra
+
+  redis:
+    image: redis/redis-stack:latest
+    container_name: tech-infra-redis
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    volumes:
+      - tech_infra_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tech_infra
+
+  mongo:
+    image: mongo:latest
+    container_name: tech-infra-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongoadmin
+      MONGO_INITDB_ROOT_PASSWORD: mongopassword
+      MONGO_INITDB_DATABASE: creator_growth_control_plane
+    ports:
+      - "27017:27017"
+    volumes:
+      - tech_infra_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" --username $$MONGO_INITDB_ROOT_USERNAME --password $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin | grep 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+    networks:
+      - tech_infra
+
+volumes:
+  tech_infra_postgres_root:
+    name: tech-infra-postgres-root
+  tech_infra_redis_data:
+    name: tech-infra-redis-data
+  tech_infra_mongo_data:
+    name: tech-infra-mongo-data
+
+networks:
+  tech_infra:
+    name: tech-infra-network
+

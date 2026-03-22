@@ -1,0 +1,18 @@
+wheel
+termcolor
+schedule
+requests
+kittentts @ https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl
+soundfile
+prettytable
+webdriver_manager
+selenium
+ollama
+moviepy==1.0.3
+Pillow>=9.5.0,<10
+yagmail
+assemblyai
+faster-whisper
+srt_equalizer
+undetected_chromedriver
+platformdirs

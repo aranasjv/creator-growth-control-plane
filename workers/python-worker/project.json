@@ -1,0 +1,16 @@
+{
+  "name": "python-worker",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "workers/python-worker",
+  "projectType": "application",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": ".",
+        "command": ".\\venv\\Scripts\\python.exe workers\\python-worker\\main.py"
+      }
+    }
+  },
+  "tags": ["scope:worker"]
+}

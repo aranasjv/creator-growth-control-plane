@@ -1,0 +1,35 @@
+{
+  "name": "creator-growth-control-plane",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "nx": "set NX_DAEMON=false&& set NX_ISOLATE_PLUGINS=false&& nx",
+    "dev:web": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_web.ps1",
+    "build:web": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_web.ps1",
+    "dev:api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_api.ps1",
+    "build:api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_api.ps1",
+    "dev:worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_worker.ps1",
+    "start:infra": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_stack.ps1",
+    "start:project": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_project_stack.ps1",
+    "stop:project": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop_project_stack.ps1",
+    "start:hybrid": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_hybrid_workspace.ps1",
+    "start:desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start_workspace.ps1",
+    "typecheck:web": "node_modules\\.bin\\tsc.cmd -p apps/web/tsconfig.json --noEmit",
+    "nx:web:dev": "set NX_DAEMON=false&& set NX_ISOLATE_PLUGINS=false&& nx run web:dev",
+    "nx:api:dev": "set NX_DAEMON=false&& set NX_ISOLATE_PLUGINS=false&& nx run api:dev",
+    "nx:worker:dev": "set NX_DAEMON=false&& set NX_ISOLATE_PLUGINS=false&& nx run python-worker:dev"
+  },
+  "dependencies": {
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "nx": "22.6.1",
+    "typescript": "5.9.3"
+  }
+}
+

@@ -1,0 +1,50 @@
+name: creator-growth-control-plane-project
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: creator-growth-control-plane-api
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      ConnectionStrings__Postgres: Host=tech-infra-postgres;Port=5432;Database=creator_growth_control_plane;Username=postgres;Password=postgres
+      ConnectionStrings__Redis: tech-infra-redis:6379
+      ConnectionStrings__Mongo: mongodb://mongoadmin:mongopassword@tech-infra-mongo:27017/admin?authSource=admin
+      Platform__AllowedOrigins__0: http://localhost:3000
+      Platform__AllowedOrigins__1: http://127.0.0.1:3000
+      CGCP_REPOSITORY_ROOT: /workspace
+    ports:
+      - "5050:8080"
+    volumes:
+      - ./.mp:/workspace/.mp:ro
+    networks:
+      - cgcp_app
+      - tech_infra
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: creator-growth-control-plane-web
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://creator-growth-control-plane-api:8080
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:5050
+      PORT: 3000
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+    networks:
+      - cgcp_app
+    restart: unless-stopped
+
+networks:
+  cgcp_app:
+    name: creator-growth-control-plane-app-network
+  tech_infra:
+    external: true
+    name: tech-infra-network
+
+
