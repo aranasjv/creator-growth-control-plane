@@ -269,13 +269,21 @@ class YouTube:
         Returns:
             image_prompts (List[str]): Generated List of image prompts.
         """
-        n_prompts = len(self.script) / 3
+        # Bound prompt count to avoid runaway image generation when the model
+        # returns a long script block.
+        sentence_candidates = [
+            chunk.strip()
+            for chunk in re.split(r"[.!?]+", str(self.script))
+            if chunk and chunk.strip()
+        ]
+        estimated_from_sentences = max(6, len(sentence_candidates) * 2)
+        n_prompts = min(24, estimated_from_sentences)
 
         from llm_provider import get_managed_prompt
         prompt_text = get_managed_prompt(
             "youtube_image_prompts",
             default_prompt=f"Generate {n_prompts} Image Prompts for AI Image Generation for subject: {self.subject}. Return as JSON-Array of strings. Script context:\n{self.script}",
-            n_prompts=int(n_prompts),
+            n_prompts=n_prompts,
             subject=self.subject,
             script=self.script
         )
@@ -289,7 +297,8 @@ class YouTube:
         image_prompts = []
 
         if "image_prompts" in completion:
-            image_prompts = json.loads(completion)["image_prompts"]
+            parsed = json.loads(completion)
+            image_prompts = parsed.get("image_prompts", []) if isinstance(parsed, dict) else []
         else:
             try:
                 image_prompts = json.loads(completion)
@@ -301,16 +310,30 @@ class YouTube:
                         "LLM returned an unformatted response. Attempting to clean..."
                     )
 
-                # Get everything between [ and ], and turn it into a list
-                r = re.compile(r"\[.*\]")
-                image_prompts = r.findall(completion)
+                # Extract a JSON-like array from the response body.
+                match = re.search(r"\[[\s\S]*\]", completion)
+                if match:
+                    try:
+                        image_prompts = json.loads(match.group(0))
+                    except Exception:
+                        image_prompts = []
+
                 if len(image_prompts) == 0:
                     if get_verbose():
                         warning("Failed to generate Image Prompts. Retrying...")
                     return self.generate_prompts()
 
+        if not isinstance(image_prompts, list):
+            image_prompts = []
+
+        image_prompts = [
+            str(item).strip()
+            for item in image_prompts
+            if str(item).strip()
+        ]
+
         if len(image_prompts) > n_prompts:
-            image_prompts = image_prompts[: int(n_prompts)]
+            image_prompts = image_prompts[:n_prompts]
 
         self.image_prompts = image_prompts
 

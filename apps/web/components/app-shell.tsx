@@ -20,11 +20,16 @@ type AppShellProps = {
 };
 
 export function AppShell({ current, eyebrow, title, summary, children }: AppShellProps) {
+  const currentItem = NAV_ITEMS.find((item) => item.href === current);
+
   return (
     <div className="shell">
       <aside className="shell__rail">
-        <p className="shell__eyebrow">Creator Growth Control</p>
-        <h1 className="shell__brand">Watch the bots. Guard the margin.</h1>
+        <div className="shell__rail-header">
+          <p className="shell__eyebrow">Creator Growth Control</p>
+          <h1 className="shell__brand">Creator Growth Control Plane</h1>
+          <p className="shell__subtitle">Compact command center for jobs, content, outreach, and profit visibility.</p>
+        </div>
         <nav className="shell__nav" aria-label="Primary navigation">
           {NAV_ITEMS.map((item) => (
             <Link key={item.href} className={current === item.href ? "shell__nav-link shell__nav-link--active" : "shell__nav-link"} href={item.href}>
@@ -33,8 +38,12 @@ export function AppShell({ current, eyebrow, title, summary, children }: AppShel
           ))}
         </nav>
         <div className="shell__note">
-          <span className="shell__note-label">Control Plane</span>
-          <p>Next.js dashboard, ASP.NET Core orchestrator, Python workers, Postgres, Redis, and your existing automation flows behind one command center.</p>
+          <span className="shell__note-label">Now viewing</span>
+          <p>
+            <strong>{currentItem?.label ?? "Dashboard"}</strong>
+            {" "}
+            panel. Follow live jobs, inspect outcomes, and intervene without switching tools.
+          </p>
         </div>
       </aside>
       <main className="shell__main">

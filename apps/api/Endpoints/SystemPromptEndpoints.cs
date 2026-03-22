@@ -72,7 +72,9 @@ public static class SystemPromptEndpoints
     {
         var group = app.MapGroup("/api/prompts");
         group.MapGet("", GetPromptsAsync);
+        group.MapPost("", CreatePromptAsync);
         group.MapPut("/{id:guid}", UpdatePromptAsync);
+        group.MapDelete("/{id:guid}", DeletePromptAsync);
         return app;
     }
 
@@ -129,6 +131,55 @@ public static class SystemPromptEndpoints
         });
     }
 
+    private static async Task<IResult> CreatePromptAsync(
+        CreatePromptDto dto,
+        CreatorGrowthControlPlaneDbContext dbContext,
+        IConnectionMultiplexer redis,
+        CancellationToken cancellationToken)
+    {
+        var prompt = new SystemPromptEntity
+        {
+            Id = Guid.NewGuid(),
+            Key = dto.Key,
+            Description = dto.Description,
+            PromptText = dto.PromptText
+        };
+
+        dbContext.SystemPrompts.Add(prompt);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await CachePromptsToRedisAsync(dbContext, redis, cancellationToken);
+
+        return Results.Ok(new
+        {
+            prompt.Id,
+            prompt.Key,
+            prompt.Description,
+            prompt.PromptText,
+            prompt.UpdatedAt
+        });
+    }
+
+    private static async Task<IResult> DeletePromptAsync(
+        Guid id,
+        CreatorGrowthControlPlaneDbContext dbContext,
+        IConnectionMultiplexer redis,
+        CancellationToken cancellationToken)
+    {
+        var prompt = await dbContext.SystemPrompts.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (prompt is null)
+        {
+            return Results.NotFound();
+        }
+
+        dbContext.SystemPrompts.Remove(prompt);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await CachePromptsToRedisAsync(dbContext, redis, cancellationToken);
+
+        return Results.NoContent();
+    }
+
     private static async Task CachePromptsToRedisAsync(
         CreatorGrowthControlPlaneDbContext dbContext, 
         IConnectionMultiplexer redis, 
@@ -142,3 +193,4 @@ public static class SystemPromptEndpoints
 }
 
 public record UpdatePromptDto(string PromptText);
+public record CreatePromptDto(string Key, string Description, string PromptText);

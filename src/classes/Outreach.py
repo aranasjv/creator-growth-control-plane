@@ -418,11 +418,20 @@ class Outreach:
         if not niche_outputs:
             raise RuntimeError("No scraper output was produced for any configured niche.")
 
-        self.merge_results([path for _, path in niche_outputs], output_path)
+        self.merge_results(niche_outputs, output_path)
 
         # Get the items from the file
-        items = self.get_items_from_file(output_path)
-        success(f" => Scraped {len(items)} items.")
+        all_items = self.get_items_from_file(output_path)
+        
+        target_niches = {n.strip().lower() for n in (self.niches or [self.niche]) if n.strip()}
+        items = []
+        for item in all_items:
+            item_niche = str(item.get("niche") or "").strip().lower()
+            # Strict filter to active niches (allow unbound legacy items if needed, but best strict)
+            if not target_niches or item_niche in target_niches:
+                items.append(item)
+
+        success(f" => Filtered {len(all_items)} total scraped items down to {len(items)} matching active niches.")
 
         time.sleep(2)
 
@@ -627,12 +636,12 @@ class Outreach:
             "emailAttempts": email_attempts[:120],
         }
 
-    def merge_results(self, source_files: list[str], destination_file: str) -> None:
+    def merge_results(self, niche_outputs: list[tuple[str, str]], destination_file: str) -> None:
         """
-        Merges multiple scraper CSV outputs into a single deduplicated CSV.
+        Merges multiple scraper CSV outputs into a single deduplicated CSV, tracking the Niche column natively.
 
         Args:
-            source_files (list[str]): CSV files to merge
+            niche_outputs (list[tuple[str, str]]): List of tuples containing (niche, file_path)
             destination_file (str): Final merged CSV path
 
         Returns:
@@ -642,7 +651,28 @@ class Outreach:
         header = None
         seen = set()
 
-        for source_file in source_files:
+        # Phase 1: Ingest Historical Destination Cache
+        if os.path.exists(destination_file):
+            with open(destination_file, "r", newline="", errors="ignore") as csvfile:
+                reader = csv.reader(csvfile)
+                file_rows = list(reader)
+                if file_rows:
+                    header = file_rows[0]
+                    if "niche" not in header:
+                        header.append("niche")
+                    
+                    niche_idx = header.index("niche")
+                    for row in file_rows[1:]:
+                        while len(row) <= niche_idx:
+                            row.append("")
+                        # Dedupe loosely over primary title/link info (first 3 cols)
+                        normalized = tuple(cell.strip().lower() for cell in row[:3])
+                        if normalized not in seen:
+                            seen.add(normalized)
+                            rows.append(row)
+
+        # Phase 2: Insert active outputs
+        for niche, source_file in niche_outputs:
             with open(source_file, "r", newline="", errors="ignore") as csvfile:
                 reader = csv.reader(csvfile)
                 file_rows = list(reader)
@@ -652,13 +682,20 @@ class Outreach:
 
             if header is None:
                 header = file_rows[0]
+                if "niche" not in header:
+                    header.append("niche")
+
+            niche_idx = header.index("niche")
 
             for row in file_rows[1:]:
-                normalized = tuple(cell.strip().lower() for cell in row)
-                if normalized in seen:
-                    continue
-                seen.add(normalized)
-                rows.append(row)
+                while len(row) <= niche_idx:
+                    row.append(niche)
+                row[niche_idx] = niche
+                
+                normalized = tuple(cell.strip().lower() for cell in row[:3])
+                if normalized not in seen:
+                    seen.add(normalized)
+                    rows.append(row)
 
         if header is None:
             raise FileNotFoundError("No outreach CSV headers were found to merge.")

@@ -361,6 +361,7 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
   const [error, setError] = useState<string | null>(null);
   const [activeDialog, setActiveDialog] = useState<InspectorDialogState | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [activeDialogTab, setActiveDialogTab] = useState<"emails" | "timeline">("timeline");
   const [controlsBusy, setControlsBusy] = useState(false);
   const [controlsMessage, setControlsMessage] = useState<string | null>(null);
   const [outreachNiches, setOutreachNiches] = useState("pet shops");
@@ -713,7 +714,7 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
           </div>
         </div>
         <div className="jobs-live__controls">
-          <button className="shell__nav-link" type="button" onClick={() => setAutoRefresh((value) => !value)}>
+          <button className="shell__nav-link" type="button" aria-pressed={autoRefresh} onClick={() => setAutoRefresh((value) => !value)}>
             {autoRefresh ? "Live stream on" : "Live stream off"}
           </button>
           <button className="shell__nav-link" type="button" onClick={() => void refreshState(selectedJobId)}>
@@ -755,8 +756,13 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
             <input value={modelInput} onChange={(event) => setModelInput(event.target.value)} placeholder="model name" />
           </label>
           <label className="jobs-controls__field">
-            <span>Longform (For Shorts)</span>
-            <input value={longformInput} onChange={(event) => setLongformInput(event.target.value)} placeholder="Paste article/longform text..." />
+            <span>Longform source (for shorts)</span>
+            <textarea
+              rows={3}
+              value={longformInput}
+              onChange={(event) => setLongformInput(event.target.value)}
+              placeholder="Paste source script or article for conversion..."
+            />
           </label>
         </div>
         <div className="jobs-controls__actions">
@@ -927,59 +933,72 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
             ) : null}
             {selectedJob?.errorMessage ? <p className="profile-card__error">{truncateText(selectedJob.errorMessage, 260)}</p> : null}
 
-            <div className="stack-list live-feed__list">
-              <div className="panel__header">
-                <h3>Email attempts</h3>
-                <span>{emailAttempts.length}</span>
-              </div>
-              {emailAttempts.length === 0 ? (
-                <p className="empty-state">No email attempt details captured for this job yet.</p>
-              ) : null}
-              {emailAttempts.map((attempt, index) => (
-                <button
-                  key={`${attempt.recipient ?? attempt.companyName ?? "attempt"}-${index}`}
-                  type="button"
-                  className="event-card"
-                  onClick={() => openAttemptDialog(attempt)}
-                >
-                  <div className="event-card__content">
-                    <p className="stack-list__title">{attempt.recipient || attempt.companyName || "Unknown recipient"}</p>
-                    <p className="stack-list__meta">{truncateText(attempt.subject || attempt.error || "No subject captured.", 160)}</p>
-                  </div>
-                  <div className="event-card__meta">
-                    <span className={`status-pill status-pill--${normalizeAttemptStatus(attempt.status)}`}>
-                      {normalizeAttemptStatus(attempt.status).replace(/_/g, " ")}
-                    </span>
-                    <span className="stack-list__meta">{attempt.website || "-"}</span>
-                  </div>
-                </button>
-              ))}
+            <div className="inspector-tabs">
+              <button
+                type="button"
+                className={`shell__nav-link ${activeDialogTab === "timeline" ? "shell__nav-link--active" : ""}`}
+                onClick={() => setActiveDialogTab("timeline")}
+              >
+                Timeline ({timelinePreviewEvents.length} / {sortedEvents.length})
+              </button>
+              <button
+                type="button"
+                className={`shell__nav-link ${activeDialogTab === "emails" ? "shell__nav-link--active" : ""}`}
+                onClick={() => setActiveDialogTab("emails")}
+              >
+                Email Attempts ({emailAttempts.length})
+              </button>
             </div>
 
-            <div className="stack-list live-feed__list">
-              <div className="panel__header">
-                <h3>Timeline</h3>
-                <span>{timelinePreviewEvents.length} / {sortedEvents.length}</span>
+            {activeDialogTab === "emails" && (
+              <div className="stack-list live-feed__list">
+                {emailAttempts.length === 0 ? (
+                  <p className="empty-state">No email attempt details captured for this job yet.</p>
+                ) : null}
+                {emailAttempts.map((attempt, index) => (
+                  <button
+                    key={`${attempt.recipient ?? attempt.companyName ?? "attempt"}-${index}`}
+                    type="button"
+                    className="event-card"
+                    onClick={() => openAttemptDialog(attempt)}
+                  >
+                    <div className="event-card__content">
+                      <p className="stack-list__title">{attempt.recipient || attempt.companyName || "Unknown recipient"}</p>
+                      <p className="stack-list__meta">{truncateText(attempt.subject || attempt.error || "No subject captured.", 160)}</p>
+                    </div>
+                    <div className="event-card__meta">
+                      <span className={`status-pill status-pill--${normalizeAttemptStatus(attempt.status)}`}>
+                        {normalizeAttemptStatus(attempt.status).replace(/_/g, " ")}
+                      </span>
+                      <span className="stack-list__meta">{attempt.website || "-"}</span>
+                    </div>
+                  </button>
+                ))}
               </div>
-              {sortedEvents.length === 0 ? <p className="empty-state">No action events published yet.</p> : null}
-              {timelinePreviewEvents.map((eventItem) => (
-                <button
-                  key={eventItem.id}
-                  type="button"
-                  className="event-card"
-                  onClick={() => openEventDialog(eventItem)}
-                >
-                  <div className="event-card__content">
-                    <p className="stack-list__title">{toStepLabel(eventItem.step)}</p>
-                    <p className="stack-list__meta">{truncateText(eventItem.message, 180)}</p>
-                  </div>
-                  <div className="event-card__meta">
-                    <span className={`status-pill status-pill--${eventItem.level}`}>{eventItem.level}</span>
-                    <span className="stack-list__meta">{formatDate(eventItem.createdAt)}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+            )}
+
+            {activeDialogTab === "timeline" && (
+              <div className="stack-list live-feed__list">
+                {sortedEvents.length === 0 ? <p className="empty-state">No action events published yet.</p> : null}
+                {timelinePreviewEvents.map((eventItem) => (
+                  <button
+                    key={eventItem.id}
+                    type="button"
+                    className="event-card"
+                    onClick={() => openEventDialog(eventItem)}
+                  >
+                    <div className="event-card__content">
+                      <p className="stack-list__title">{toStepLabel(eventItem.step)}</p>
+                      <p className="stack-list__meta">{truncateText(eventItem.message, 180)}</p>
+                    </div>
+                    <div className="event-card__meta">
+                      <span className={`status-pill status-pill--${eventItem.level}`}>{eventItem.level}</span>
+                      <span className="stack-list__meta">{formatDate(eventItem.createdAt)}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </article>
         </div>
       ) : null}

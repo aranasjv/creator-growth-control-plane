@@ -324,3 +324,20 @@ export async function savePrompt(id: string, promptText: string): Promise<System
   if (!response.ok) throw new Error("Could not save prompt");
   return response.json() as Promise<SystemPrompt>;
 }
+
+export async function createPrompt(promptParams: { key: string; description: string; promptText: string }): Promise<SystemPrompt> {
+  const response = await fetch(`${API_BASE_URL}/api/prompts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(promptParams),
+  });
+  if (!response.ok) throw new Error("Could not create prompt");
+  return response.json() as Promise<SystemPrompt>;
+}
+
+export async function deletePrompt(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/prompts/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error("Could not delete prompt");
+}
