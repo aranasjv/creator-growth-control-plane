@@ -228,6 +228,25 @@ export async function readAccounts(): Promise<AccountItem[]> {
   return readJson<AccountItem[]>("/api/accounts", []);
 }
 
+export async function updateAccount(
+  accountId: string,
+  payload: { topic?: string | null; niche?: string | null; language?: string | null },
+): Promise<AccountItem> {
+  const response = await fetch(`${API_BASE_URL}/api/accounts/${accountId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not update account ${accountId}: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<AccountItem>;
+}
+
 export async function readContent(): Promise<ContentItem[]> {
   return readJson<ContentItem[]>("/api/content", []);
 }

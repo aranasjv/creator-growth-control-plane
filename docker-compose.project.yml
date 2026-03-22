@@ -16,7 +16,7 @@ services:
     ports:
       - "5050:8080"
     volumes:
-      - ./.mp:/workspace/.mp:ro
+      - ./.mp:/workspace/.mp
     networks:
       - cgcp_app
       - tech_infra

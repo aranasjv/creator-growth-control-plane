@@ -1,5 +1,6 @@
 ﻿using System.Text.Json.Nodes;
 using System.Text;
+using System.Text.Json;
 using CreatorGrowthControlPlane.Orchestrator.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,7 @@ public static class DashboardEndpoints
         var dashboard = app.MapGroup("/api");
         dashboard.MapGet("/overview", GetOverviewAsync);
         dashboard.MapGet("/accounts", GetAccountsAsync);
+        dashboard.MapPut("/accounts/{accountId}", UpdateAccountAsync);
         dashboard.MapGet("/content", GetContentAsync);
         dashboard.MapGet("/affiliate/overview", GetAffiliateOverviewAsync);
         dashboard.MapGet("/profit", GetProfitAsync);
@@ -98,6 +100,66 @@ public static class DashboardEndpoints
             .ToListAsync(cancellationToken);
 
         return Results.Ok(accounts);
+    }
+
+    private static async Task<IResult> UpdateAccountAsync(
+        string accountId,
+        UpdateAccountDto dto,
+        CreatorGrowthControlPlaneDbContext dbContext,
+        IWebHostEnvironment environment,
+        CancellationToken cancellationToken)
+    {
+        var account = await dbContext.Accounts.FirstOrDefaultAsync(item => item.Id == accountId, cancellationToken);
+        if (account is null)
+        {
+            return Results.NotFound();
+        }
+
+        if (dto.Topic is not null)
+        {
+            account.Topic = string.IsNullOrWhiteSpace(dto.Topic) ? null : dto.Topic.Trim();
+        }
+
+        if (dto.Niche is not null)
+        {
+            account.Niche = string.IsNullOrWhiteSpace(dto.Niche) ? null : dto.Niche.Trim();
+        }
+
+        if (dto.Language is not null)
+        {
+            account.Language = string.IsNullOrWhiteSpace(dto.Language) ? null : dto.Language.Trim();
+        }
+
+        if (string.Equals(account.Provider, "youtube", StringComparison.OrdinalIgnoreCase) && dto.Topic is not null && dto.Niche is null)
+        {
+            account.Niche = account.Topic;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        string? syncWarning = null;
+        try
+        {
+            await SyncAccountToLegacyCacheAsync(environment, account, cancellationToken);
+        }
+        catch (Exception exc)
+        {
+            syncWarning = $"Saved in database, but legacy cache sync failed: {exc.Message}";
+        }
+
+        return Results.Ok(new
+        {
+            account.Id,
+            account.Provider,
+            account.Nickname,
+            account.Topic,
+            account.Niche,
+            account.Language,
+            account.LastActiveAt,
+            account.LastFailureAt,
+            account.LastError,
+            syncWarning
+        });
     }
 
     private static async Task<IResult> GetContentAsync(CreatorGrowthControlPlaneDbContext dbContext, CancellationToken cancellationToken)
@@ -423,5 +485,70 @@ public static class DashboardEndpoints
             ? trimmed
             : string.Empty;
     }
+
+    private static async Task SyncAccountToLegacyCacheAsync(
+        IWebHostEnvironment environment,
+        Domain.AccountEntity account,
+        CancellationToken cancellationToken)
+    {
+        var provider = account.Provider.ToLowerInvariant();
+        if (provider is not ("twitter" or "youtube"))
+        {
+            return;
+        }
+
+        var repositoryRoot = ResolveRepositoryRoot(environment);
+        var cachePath = Path.Combine(repositoryRoot, ".mp", $"{provider}.json");
+        if (!File.Exists(cachePath))
+        {
+            return;
+        }
+
+        JsonNode? root;
+        try
+        {
+            var raw = await File.ReadAllTextAsync(cachePath, cancellationToken);
+            root = JsonNode.Parse(raw);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (root is null)
+        {
+            return;
+        }
+
+        var accounts = root["accounts"]?.AsArray();
+        if (accounts is null)
+        {
+            return;
+        }
+
+        var matched = accounts
+            .OfType<JsonObject>()
+            .FirstOrDefault(item => string.Equals(item["id"]?.GetValue<string>(), account.Id, StringComparison.OrdinalIgnoreCase));
+        if (matched is null)
+        {
+            return;
+        }
+
+        if (provider == "twitter")
+        {
+            matched["topic"] = account.Topic ?? string.Empty;
+        }
+        else
+        {
+            matched["topic"] = account.Topic ?? account.Niche ?? string.Empty;
+            matched["niche"] = account.Niche ?? account.Topic ?? string.Empty;
+            matched["language"] = account.Language ?? string.Empty;
+        }
+
+        var json = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(cachePath, json, cancellationToken);
+    }
 }
+
+public sealed record UpdateAccountDto(string? Topic, string? Niche, string? Language);
 

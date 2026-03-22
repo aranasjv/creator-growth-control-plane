@@ -984,6 +984,68 @@ class YouTube:
 
         raise RuntimeError(f"Could not set textbox value: {last_error}") from last_error
 
+    def _normalize_text_for_compare(self, value: str) -> str:
+        return re.sub(r"\s+", " ", str(value or "").strip())
+
+    def _read_textbox_value(self, selectors: List[tuple[str, str]]) -> str:
+        element = self._wait_for_any(selectors, clickable=False, timeout=30)
+        try:
+            raw = self.browser.execute_script(
+                "return (arguments[0].innerText || arguments[0].textContent || '').trim();",
+                element,
+            )
+            return str(raw or "").strip()
+        except Exception:
+            return (
+                element.get_attribute("innerText")
+                or element.get_attribute("textContent")
+                or element.text
+                or ""
+            ).strip()
+
+    def _set_upload_metadata(
+        self,
+        title: str,
+        description: str,
+        title_selectors: List[tuple[str, str]],
+        description_selectors: List[tuple[str, str]],
+    ) -> None:
+        target_title = self._normalize_text_for_compare(title)
+        target_description = self._normalize_text_for_compare(description)
+        last_seen_title = ""
+        last_seen_description = ""
+
+        for attempt in range(1, 4):
+            title_el = self._wait_for_any(title_selectors, clickable=True, timeout=90)
+            self._set_textbox_value(title_el, title, selectors=title_selectors)
+
+            description_el = self._wait_for_any(description_selectors, clickable=True, timeout=90)
+            self._set_textbox_value(description_el, description, selectors=description_selectors)
+
+            # Let Studio apply any deferred value sync before verification.
+            time.sleep(1.0)
+
+            last_seen_title = self._normalize_text_for_compare(self._read_textbox_value(title_selectors))
+            last_seen_description = self._normalize_text_for_compare(self._read_textbox_value(description_selectors))
+
+            if last_seen_title == target_title and last_seen_description == target_description:
+                try:
+                    self.browser.find_element(By.TAG_NAME, "body").send_keys(Keys.TAB)
+                    time.sleep(0.3)
+                except Exception:
+                    pass
+                return
+
+            warning(
+                "YouTube metadata fields changed after entry; retrying "
+                f"({attempt}/3)."
+            )
+
+        raise RuntimeError(
+            "Could not persist YouTube title/description before publish. "
+            f"Last seen title='{last_seen_title}' description='{last_seen_description}'."
+        )
+
     def _extract_uploaded_video_url(self) -> str | None:
         """
         Attempts to read the latest uploaded video URL.
@@ -993,8 +1055,13 @@ class YouTube:
         """
         for anchor in self.browser.find_elements(By.CSS_SELECTOR, "a[href*='watch?v=']"):
             href = (anchor.get_attribute("href") or "").strip()
-            if "watch?v=" in href:
-                return href.split("&")[0]
+            match = re.search(r"[?&]v=([A-Za-z0-9_-]{6,})", href)
+            if not match:
+                continue
+            video_id = match.group(1)
+            if video_id.lower() == "edit":
+                continue
+            return build_url(video_id)
 
         if not self.channel_id:
             return None
@@ -1011,7 +1078,7 @@ class YouTube:
                     continue
 
                 video_id = href.rstrip("/").split("/")[-1]
-                if video_id:
+                if video_id and video_id.lower() != "edit":
                     return build_url(video_id)
             except Exception:
                 continue
@@ -1090,37 +1157,21 @@ class YouTube:
                 (By.CSS_SELECTOR, "#title-textarea #textbox"),
                 (By.XPATH, "(//*[@id='textbox'])[1]"),
             ]
-            title_el = self._wait_for_any(
-                title_selectors,
-                clickable=True,
-                timeout=90,
-            )
-
-            if verbose:
-                info("\t=> Setting title...")
-            self._set_textbox_value(
-                title_el,
-                str(self.metadata["title"])[:100],
-                selectors=title_selectors,
-            )
-
-            if verbose:
-                info("\t=> Setting description...")
 
             description_selectors = [
                 (By.CSS_SELECTOR, "ytcp-social-suggestions-textbox#description-textarea #textbox"),
                 (By.CSS_SELECTOR, "#description-textarea #textbox"),
                 (By.XPATH, "(//*[@id='textbox'])[2]"),
             ]
-            description_el = self._wait_for_any(
-                description_selectors,
-                clickable=True,
-                timeout=90,
-            )
-            self._set_textbox_value(
-                description_el,
+
+            if verbose:
+                info("\t=> Setting title and description...")
+
+            self._set_upload_metadata(
+                str(self.metadata["title"])[:100],
                 str(self.metadata["description"]),
-                selectors=description_selectors,
+                title_selectors,
+                description_selectors,
             )
 
             # Set `made for kids` option

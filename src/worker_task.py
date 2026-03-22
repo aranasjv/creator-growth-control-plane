@@ -35,7 +35,11 @@ def run_twitter(account_id: str) -> dict:
     from classes.Twitter import Twitter
 
     account = require_account("twitter", account_id)
-    twitter = Twitter(account["id"], account["nickname"], account["firefox_profile"], account["topic"])
+    topic_seed = (account.get("topic") or account.get("niche") or "").strip()
+    if not topic_seed:
+        raise ValueError("Twitter account is missing both topic and niche.")
+
+    twitter = Twitter(account["id"], account["nickname"], account["firefox_profile"], topic_seed)
     try:
         twitter.post()
     finally:
@@ -57,12 +61,15 @@ def run_youtube(account_id: str) -> dict:
     from utils import fetch_songs
 
     account = require_account("youtube", account_id)
+    topic_seed = (account.get("topic") or account.get("niche") or "").strip()
+    if not topic_seed:
+        raise ValueError("YouTube account is missing both topic and niche.")
     fetch_songs()
     youtube = YouTube(
         account["id"],
         account["nickname"],
         account["firefox_profile"],
-        account["niche"],
+        topic_seed,
         account["language"],
     )
     
