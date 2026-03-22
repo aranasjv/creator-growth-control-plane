@@ -1,6 +1,8 @@
 using CreatorGrowthControlPlane.Orchestrator.Data;
 using CreatorGrowthControlPlane.Orchestrator.Domain;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace CreatorGrowthControlPlane.Orchestrator.Endpoints;
 
@@ -36,6 +38,7 @@ public static class SettingsEndpoints
     private static async Task<IResult> UpdateSettingsAsync(
         GlobalSettingsUpdateDto dto,
         CreatorGrowthControlPlaneDbContext dbContext,
+        IConnectionMultiplexer redis,
         CancellationToken cancellationToken)
     {
         var settings = await dbContext.GlobalSettings.FirstOrDefaultAsync(cancellationToken);
@@ -52,13 +55,18 @@ public static class SettingsEndpoints
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Results.Ok(new
+        var finalResponse = new
         {
             settings.OpenAIApiKey,
             settings.GeminiApiKey,
             settings.ActiveModelProvider,
             settings.OllamaModelName
-        });
+        };
+
+        var cacheDb = redis.GetDatabase();
+        await cacheDb.StringSetAsync("cgcp:settings", JsonSerializer.Serialize(finalResponse));
+
+        return Results.Ok(finalResponse);
     }
 }
 

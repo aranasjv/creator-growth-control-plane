@@ -18,3 +18,4 @@ undetected_chromedriver
 platformdirs
 openai
 google-generativeai
+redis

@@ -8,7 +8,7 @@ from cache import *
 from config import *
 from status import *
 from utils import prepare_firefox_profile, cleanup_firefox_profile_clone
-from llm_provider import generate_text
+from llm_provider import generate_text, get_managed_prompt
 from typing import List, Optional
 from datetime import datetime
 from termcolor import colored
@@ -229,8 +229,11 @@ class Twitter:
             post (str): The post
         """
         completion = generate_text(
-            f"Generate a Twitter post about: {self.topic} in {get_twitter_language()}. "
-            "The Limit is 2 sentences. Choose a specific sub-topic of the provided topic."
+            prompt=get_managed_prompt(
+                "twitter_post_generation",
+                "Generate a highly engaging, native X post about {topic}.",
+                topic=self.topic
+            )
         )
 
         if get_verbose():

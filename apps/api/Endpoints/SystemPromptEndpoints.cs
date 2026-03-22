@@ -1,6 +1,8 @@
 using CreatorGrowthControlPlane.Orchestrator.Data;
 using CreatorGrowthControlPlane.Orchestrator.Domain;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace CreatorGrowthControlPlane.Orchestrator.Endpoints;
 
@@ -20,7 +22,7 @@ public static class SystemPromptEndpoints
             Id = Guid.NewGuid(),
             Key = "youtube_script_generation",
             Description = "Generates the voiceover script for the video.",
-            PromptText = "You are a professional YouTube scriptwriter known for retaining high viewer attention. Write a script for a video about {subject} in exactly {sentence_length} short, punchy sentences. DO NOT INCLUDE ANY FORMATTING LIKE 'VOICEOVER:' OR MENTION THIS PROMPT. Speak directly to the audience. Ensure the script uses simple, engaging language."
+            PromptText = "You are a professional YouTube scriptwriter known for retaining high viewer attention. Write a script for a video about {subject} in exactly {sentence_length} short, punchy sentences. Show the result early and structure the narrative by chapter. Give brief directional notes to refresh the visual every 20-30 seconds. DO NOT INCLUDE ANY FORMATTING LIKE 'VOICEOVER:' OR MENTION THIS PROMPT."
         },
         new SystemPromptEntity
         {
@@ -48,7 +50,21 @@ public static class SystemPromptEndpoints
             Id = Guid.NewGuid(),
             Key = "short_from_longform_script",
             Description = "Summarizes long-form content into a punchy short script.",
-            PromptText = "You are an expert at repurposing long-form content into engaging short-form video scripts (like TikTok or YouTube Shorts). Summarize the following long form content into a highly engaging {sentence_length}-sentence script. Make it punchy, hook the viewer in the first sentence, and deliver value. DO NOT INCLUDE ANY FORMATTING LIKE 'VOICEOVER:' OR MENTION THE PROMPT. ONLY RETURN THE SCRIPT TEXT.\n\nContent:\n{content}"
+            PromptText = "You are an expert at repurposing long-form content into engaging short-form video scripts (like TikTok or YouTube Shorts). Summarize the following long form content into a highly engaging {sentence_length}-sentence script. Make it punchy, hook the viewer in the first 3 seconds, and deliver one clear idea. DO NOT INCLUDE ANY FORMATTING LIKE 'VOICEOVER:' OR MENTION THE PROMPT. ONLY RETURN THE SCRIPT TEXT.\n\nContent:\n{content}"
+        },
+        new SystemPromptEntity
+        {
+            Id = Guid.NewGuid(),
+            Key = "twitter_post_generation",
+            Description = "Generates a highly engaging X (Twitter) post based on the content engine playbook.",
+            PromptText = "You are an expert X (Twitter) content creator. Write exactly one fast-opening, highly engaging post about {topic}. Rules: Open fast. One clear idea per post. Hooks matter more than summaries. Use specifics over slogans. Keep links out of the main body unless necessary. Avoid hash-tag spam. Only return the raw text of the post."
+        },
+        new SystemPromptEntity
+        {
+            Id = Guid.NewGuid(),
+            Key = "afm_pitch",
+            Description = "Generates an affiliate marketing pitch following content-engine rules.",
+            PromptText = "You are an expert promotional copywriter. Write a highly engaging pitch for: {title}. Features: {features}. Rules: Open fast. Deliver one clear outcome. Focus on specifics over hype slogans. Maximum 2 short paragraphs. Only return the pitch text."
         }
     };
 
@@ -86,6 +102,7 @@ public static class SystemPromptEndpoints
         Guid id,
         UpdatePromptDto dto,
         CreatorGrowthControlPlaneDbContext dbContext,
+        IConnectionMultiplexer redis,
         CancellationToken cancellationToken)
     {
         var prompt = await dbContext.SystemPrompts.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -99,6 +116,9 @@ public static class SystemPromptEndpoints
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        // Update Redis cache asynchronously so python reads it instantly
+        await CachePromptsToRedisAsync(dbContext, redis, cancellationToken);
+
         return Results.Ok(new
         {
             prompt.Id,
@@ -107,6 +127,17 @@ public static class SystemPromptEndpoints
             prompt.PromptText,
             prompt.UpdatedAt
         });
+    }
+
+    private static async Task CachePromptsToRedisAsync(
+        CreatorGrowthControlPlaneDbContext dbContext, 
+        IConnectionMultiplexer redis, 
+        CancellationToken cancellationToken)
+    {
+        var prompts = await dbContext.SystemPrompts.OrderBy(p => p.Key).ToListAsync(cancellationToken);
+        var dto = prompts.Select(p => new { p.Key, p.PromptText });
+        var cacheDb = redis.GetDatabase();
+        await cacheDb.StringSetAsync("cgcp:prompts", JsonSerializer.Serialize(dto));
     }
 }
 

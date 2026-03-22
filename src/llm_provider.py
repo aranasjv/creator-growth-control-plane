@@ -3,23 +3,55 @@ import requests
 import json
 import logging
 import traceback
+import redis
+from typing import Dict, List, Any
 
 API_BASE = os.environ.get("NEXT_PUBLIC_API_BASE_URL", "http://localhost:5050").rstrip("/")
+REDIS_URL = os.environ.get("CGCP_REDIS_URL", "redis://localhost:6379/0")
 
-def get_settings():
+# Setup redis client
+redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+
+def get_settings() -> Dict[str, Any]:
+    try:
+        if redis_client.exists("cgcp:settings"):
+            data = redis_client.get("cgcp:settings")
+            if data:
+                return json.loads(data)
+    except Exception as e:
+        print(f"Redis cache miss/error for settings: {e}")
+
     try:
         r = requests.get(f"{API_BASE}/api/settings", timeout=10)
         if r.status_code == 200:
-            return r.json()
+            data = r.json()
+            try:
+                redis_client.setex("cgcp:settings", 3600, json.dumps(data))
+            except Exception:
+                pass
+            return data
     except Exception as e:
         print(f"Warning: Failed to fetch settings: {e}")
     return {}
 
-def get_prompts():
+def get_prompts() -> List[Dict[str, Any]]:
+    try:
+        if redis_client.exists("cgcp:prompts"):
+            data = redis_client.get("cgcp:prompts")
+            if data:
+                return json.loads(data)
+    except Exception as e:
+        print(f"Redis cache miss/error for prompts: {e}")
+
     try:
         r = requests.get(f"{API_BASE}/api/prompts", timeout=10)
         if r.status_code == 200:
-            return r.json()
+            data = r.json()
+            try:
+                redis_client.setex("cgcp:prompts", 3600, json.dumps(data))
+            except Exception:
+                pass
+            return data
     except Exception as e:
         print(f"Warning: Failed to fetch prompts: {e}")
     return []
