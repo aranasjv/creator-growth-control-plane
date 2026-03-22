@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CreatorGrowthControlPlane.Orchestrator.Data;
 using CreatorGrowthControlPlane.Orchestrator.Endpoints;
 using CreatorGrowthControlPlane.Orchestrator.Infrastructure;
@@ -75,6 +75,8 @@ app.MapGet("/health", async (CreatorGrowthControlPlaneDbContext db, IConnectionM
 
 app.MapJobEndpoints();
 app.MapDashboardEndpoints();
+app.MapSettingsEndpoints();
+app.MapSystemPromptEndpoints();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

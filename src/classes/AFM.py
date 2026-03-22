@@ -287,10 +287,17 @@ class AffiliateMarketing:
         """
         # Generate the response
         features_summary = "; ".join(self.features[:6]) if isinstance(self.features, list) else str(self.features)
+        
+        from llm_provider import get_managed_prompt
+        prompt_text = get_managed_prompt(
+            "afm_pitch",
+            default_prompt='I want to promote this product on my website. Generate a brief pitch about this product, return nothing else except the pitch. Keep it concise for social posting. Information:\nTitle: "{title}"\nFeatures: "{features}"',
+            title=self.product_title,
+            features=features_summary
+        )
+        
         pitch: str = (
-            self.generate_response(
-                f'I want to promote this product on my website. Generate a brief pitch about this product, return nothing else except the pitch. Keep it concise for social posting. Information:\nTitle: "{self.product_title}"\nFeatures: "{features_summary}"'
-            )
+            self.generate_response(prompt_text)
             + "\nYou can buy the product here: "
             + self.affiliate_link
         )

@@ -172,9 +172,13 @@ class YouTube:
         Returns:
             topic (str): The generated topic.
         """
-        completion = self.generate_response(
-            f"Please generate a specific video idea that takes about the following topic: {self.niche}. Make it exactly one sentence. Only return the topic, nothing else."
+        from llm_provider import get_managed_prompt
+        prompt_text = get_managed_prompt(
+            "youtube_topic_generation",
+            default_prompt="Please generate a specific video idea that takes about the following topic: {niche}. Make it exactly one sentence. Only return the topic, nothing else.",
+            niche=self.niche
         )
+        completion = self.generate_response(prompt_text)
 
         if not completion:
             error("Failed to generate Topic.")
@@ -183,7 +187,7 @@ class YouTube:
 
         return completion
 
-    def generate_script(self) -> str:
+    def generate_script(self, longform_content: str = None) -> str:
         """
         Generate a script for a video, depending on the subject of the video, the number of paragraphs, and the AI model.
 
@@ -191,29 +195,25 @@ class YouTube:
             script (str): The script of the video.
         """
         sentence_length = get_script_sentence_length()
-        prompt = f"""
-        Generate a script for a video in {sentence_length} sentences, depending on the subject of the video.
-
-        The script is to be returned as a string with the specified number of paragraphs.
-
-        Here is an example of a string:
-        "This is an example string."
-
-        Do not under any circumstance reference this prompt in your response.
-
-        Get straight to the point, don't start with unnecessary things like, "welcome to this video".
-
-        Obviously, the script should be related to the subject of the video.
+        from llm_provider import get_managed_prompt
         
-        YOU MUST NOT EXCEED THE {sentence_length} SENTENCES LIMIT. MAKE SURE THE {sentence_length} SENTENCES ARE SHORT.
-        YOU MUST NOT INCLUDE ANY TYPE OF MARKDOWN OR FORMATTING IN THE SCRIPT, NEVER USE A TITLE.
-        YOU MUST WRITE THE SCRIPT IN THE LANGUAGE SPECIFIED IN [LANGUAGE].
-        ONLY RETURN THE RAW CONTENT OF THE SCRIPT. DO NOT INCLUDE "VOICEOVER", "NARRATOR" OR SIMILAR INDICATORS OF WHAT SHOULD BE SPOKEN AT THE BEGINNING OF EACH PARAGRAPH OR LINE. YOU MUST NOT MENTION THE PROMPT, OR ANYTHING ABOUT THE SCRIPT ITSELF. ALSO, NEVER TALK ABOUT THE AMOUNT OF PARAGRAPHS OR LINES. JUST WRITE THE SCRIPT
-        
-        Subject: {self.subject}
-        Language: {self.language}
-        """
-        completion = self.generate_response(prompt)
+        if longform_content:
+            prompt_text = get_managed_prompt(
+                "short_from_longform_script",
+                default_prompt="Summarize the following long form content into a highly engaging {sentence_length}-sentence script. Make it punchy, hook the viewer in the first sentence, and deliver value. DO NOT INCLUDE ANY FORMATTING LIKE 'VOICEOVER:' OR MENTION THE PROMPT. ONLY RETURN THE SCRIPT TEXT.\n\nContent:\n{content}",
+                sentence_length=sentence_length,
+                content=longform_content
+            )
+        else:
+            prompt_text = get_managed_prompt(
+                "youtube_script_generation",
+                default_prompt=f"Generate a script for a video in {sentence_length} sentences, depending on the subject {self.subject} in {self.language}.",
+                sentence_length=sentence_length,
+                subject=self.subject,
+                language=self.language
+            )
+
+        completion = self.generate_response(prompt_text)
 
         # Apply regex to remove *
         completion = re.sub(r"\*", "", completion)
@@ -238,18 +238,25 @@ class YouTube:
         Returns:
             metadata (dict): The generated metadata.
         """
-        title = self.generate_response(
-            f"Please generate a YouTube Video Title for the following subject, including hashtags: {self.subject}. Only return the title, nothing else. Limit the title under 100 characters."
+        from llm_provider import get_managed_prompt
+        title_prompt = get_managed_prompt(
+            "youtube_metadata_title",
+            default_prompt="Please generate a YouTube Video Title for the following subject, including hashtags: {subject}. Only return the title, nothing else. Limit the title under 100 characters.",
+            subject=self.subject
         )
+        title = self.generate_response(title_prompt)
 
         if len(title) > 100:
             if get_verbose():
                 warning("Generated Title is too long. Retrying...")
             return self.generate_metadata()
 
-        description = self.generate_response(
-            f"Please generate a YouTube Video Description for the following script: {self.script}. Only return the description, nothing else."
+        desc_prompt = get_managed_prompt(
+            "youtube_metadata_description",
+            default_prompt="Please generate a YouTube Video Description for the following script: {script}. Only return the description, nothing else.",
+            script=self.script
         )
+        description = self.generate_response(desc_prompt)
 
         self.metadata = {"title": title, "description": description}
 
@@ -264,34 +271,17 @@ class YouTube:
         """
         n_prompts = len(self.script) / 3
 
-        prompt = f"""
-        Generate {n_prompts} Image Prompts for AI Image Generation,
-        depending on the subject of a video.
-        Subject: {self.subject}
-
-        The image prompts are to be returned as
-        a JSON-Array of strings.
-
-        Each search term should consist of a full sentence,
-        always add the main subject of the video.
-
-        Be emotional and use interesting adjectives to make the
-        Image Prompt as detailed as possible.
-
-        YOU MUST ONLY RETURN THE JSON-ARRAY OF STRINGS.
-        YOU MUST NOT RETURN ANYTHING ELSE.
-        YOU MUST NOT RETURN THE SCRIPT.
-
-        The search terms must be related to the subject of the video.
-        Here is an example of a JSON-Array of strings:
-        ["image prompt 1", "image prompt 2", "image prompt 3"]
-
-        For context, here is the full text:
-        {self.script}
-        """
+        from llm_provider import get_managed_prompt
+        prompt_text = get_managed_prompt(
+            "youtube_image_prompts",
+            default_prompt=f"Generate {n_prompts} Image Prompts for AI Image Generation for subject: {self.subject}. Return as JSON-Array of strings. Script context:\n{self.script}",
+            n_prompts=int(n_prompts),
+            subject=self.subject,
+            script=self.script
+        )
 
         completion = (
-            str(self.generate_response(prompt))
+            str(self.generate_response(prompt_text))
             .replace("```json", "")
             .replace("```", "")
         )
@@ -723,12 +713,13 @@ class YouTube:
 
         return combined_image_path
 
-    def generate_video(self, tts_instance: TTS) -> str:
+    def generate_video(self, tts_instance: TTS, longform_content: str = None) -> str:
         """
         Generates a YouTube Short based on the provided niche and language.
 
         Args:
             tts_instance (TTS): Instance of TTS Class.
+            longform_content (str): Optional long-form content to summarize into a Short.
 
         Returns:
             path (str): The path to the generated MP4 File.
@@ -737,7 +728,7 @@ class YouTube:
         self.generate_topic()
 
         # Generate the Script
-        self.generate_script()
+        self.generate_script(longform_content)
 
         # Generate the Metadata
         self.generate_metadata()

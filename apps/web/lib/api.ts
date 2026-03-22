@@ -278,3 +278,49 @@ export function formatMoney(value: number, currency = "USD"): string {
     maximumFractionDigits: 2,
   }).format(value);
 }
+
+export type GlobalSettings = {
+  openAIApiKey?: string | null;
+  geminiApiKey?: string | null;
+  activeModelProvider: string;
+  ollamaModelName: string;
+};
+
+export type SystemPrompt = {
+  id: string;
+  key: string;
+  description: string;
+  promptText: string;
+  updatedAt: string;
+};
+
+export async function readSettings(): Promise<GlobalSettings> {
+  return readJson<GlobalSettings>("/api/settings", {
+    activeModelProvider: "ollama",
+    ollamaModelName: "llama3",
+  });
+}
+
+export async function saveSettings(settings: Partial<GlobalSettings>): Promise<GlobalSettings> {
+  const response = await fetch(`${API_BASE_URL}/api/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) throw new Error("Could not save settings");
+  return response.json() as Promise<GlobalSettings>;
+}
+
+export async function readPrompts(): Promise<SystemPrompt[]> {
+  return readJson<SystemPrompt[]>("/api/prompts", []);
+}
+
+export async function savePrompt(id: string, promptText: string): Promise<SystemPrompt> {
+  const response = await fetch(`${API_BASE_URL}/api/prompts/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ promptText }),
+  });
+  if (!response.ok) throw new Error("Could not save prompt");
+  return response.json() as Promise<SystemPrompt>;
+}

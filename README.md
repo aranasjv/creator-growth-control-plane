@@ -1,10 +1,21 @@
-﻿# Creator Growth Control Plane
+# 🚀 Creator Growth Control Plane
 
 ![BrightLoop Studio PH Logo](assets/brightloop-studio-ph-logo.svg)
 
-Creator Growth Control Plane is a production-style automation stack for content, outreach, and affiliate operations with full observability.
+**Creator Growth Control Plane** is a high-performance, production-ready automation engine and observability dashboard designed to hyper-scale content creation, cold outreach, and affiliate marketing operations. 
 
-Sample brand channels:
+Built with a robust microservices architecture, this monorepo unifies your existing scripts into one seamless, controllable, and observable system. Whether you are orchestrating localized LLMs to write YouTube shorts, or running headless browsers to scrape leads, the Control Plane gives you God-mode over your automated empire.
+
+### 🛠️ Tech Stack
+- **Frontend:** Next.js (App Router), React, TypeScript, server-side rendering
+- **Orchestrator API:** ASP.NET Core (.NET 10), Entity Framework Core
+- **Workers:** Python, Selenium, Undetected Chromedriver
+- **AI & LLMs:** OpenAI, Google Gemini, Ollama (Local support)
+- **Databases:** PostgreSQL (Relational schema), MongoDB (Document storage)
+- **Message Broker:** Redis Stack (Pub/Sub & Queueing)
+- **Infrastructure:** Docker, Docker Compose, Nx workspace
+
+### 🌟 Sample Brand Channels:
 - YouTube: `@brightloopstudioph`
 - X: `@BrightLoopPh`
 

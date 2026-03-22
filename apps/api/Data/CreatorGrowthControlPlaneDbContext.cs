@@ -1,4 +1,4 @@
-﻿using CreatorGrowthControlPlane.Orchestrator.Domain;
+using CreatorGrowthControlPlane.Orchestrator.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace CreatorGrowthControlPlane.Orchestrator.Data;
@@ -12,6 +12,8 @@ public sealed class CreatorGrowthControlPlaneDbContext(DbContextOptions<CreatorG
     public DbSet<AffiliateProductEntity> AffiliateProducts => Set<AffiliateProductEntity>();
     public DbSet<RevenueRecordEntity> RevenueRecords => Set<RevenueRecordEntity>();
     public DbSet<CostLedgerEntryEntity> CostLedgerEntries => Set<CostLedgerEntryEntity>();
+    public DbSet<GlobalSettingsEntity> GlobalSettings => Set<GlobalSettingsEntity>();
+    public DbSet<SystemPromptEntity> SystemPrompts => Set<SystemPromptEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +61,11 @@ public sealed class CreatorGrowthControlPlaneDbContext(DbContextOptions<CreatorG
         modelBuilder.Entity<CostLedgerEntryEntity>().HasKey(entry => entry.Id);
         modelBuilder.Entity<CostLedgerEntryEntity>().Property(entry => entry.Amount).HasPrecision(18, 2);
         modelBuilder.Entity<CostLedgerEntryEntity>().HasIndex(entry => entry.OccurredAt);
+
+        modelBuilder.Entity<GlobalSettingsEntity>().HasKey(settings => settings.Id);
+
+        modelBuilder.Entity<SystemPromptEntity>().HasKey(prompt => prompt.Id);
+        modelBuilder.Entity<SystemPromptEntity>().HasIndex(prompt => prompt.Key).IsUnique();
     }
 }
 

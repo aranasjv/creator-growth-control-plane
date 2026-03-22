@@ -368,6 +368,7 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
   const [accountIdInput, setAccountIdInput] = useState("");
   const [productIdInput, setProductIdInput] = useState("");
   const [modelInput, setModelInput] = useState("");
+  const [longformInput, setLongformInput] = useState("");
 
   const refreshState = useCallback(
     async (preferredJobId?: string | null) => {
@@ -574,12 +575,12 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
   );
 
   const queuePresetJob = useCallback(
-    async (preset: "smoke_test" | "outreach_dry" | "outreach_live" | "twitter_post" | "youtube_upload" | "afm_pitch") => {
+    async (preset: "smoke_test" | "outreach_dry" | "outreach_live" | "twitter_post" | "youtube_upload" | "youtube_upload_longform" | "afm_pitch") => {
       try {
         setControlsBusy(true);
         setControlsMessage(null);
 
-        if ((preset === "twitter_post" || preset === "youtube_upload") && !accountIdInput.trim()) {
+        if ((preset === "twitter_post" || preset === "youtube_upload" || preset === "youtube_upload_longform") && !accountIdInput.trim()) {
           setControlsMessage("Account ID is required for Twitter and YouTube jobs.");
           return;
         }
@@ -632,6 +633,17 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
               source: "jobs-dashboard",
             },
           };
+        } else if (preset === "youtube_upload_longform") {
+          payload = {
+            type: "youtube_upload",
+            provider: "youtube",
+            accountId: accountIdInput.trim(),
+            model: modelInput.trim() || null,
+            parameters: {
+              source: "jobs-dashboard",
+              longform_content: longformInput.trim(),
+            },
+          };
         } else {
           payload = {
             type: "afm_pitch",
@@ -655,7 +667,7 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
         setControlsBusy(false);
       }
     },
-    [accountIdInput, modelInput, outreachMaxEmails, outreachNiches, productIdInput, refreshState],
+    [accountIdInput, modelInput, longformInput, outreachMaxEmails, outreachNiches, productIdInput, refreshState],
   );
 
   const stopSelectedJob = useCallback(async () => {
@@ -742,6 +754,10 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
             <span>Model (optional)</span>
             <input value={modelInput} onChange={(event) => setModelInput(event.target.value)} placeholder="model name" />
           </label>
+          <label className="jobs-controls__field">
+            <span>Longform (For Shorts)</span>
+            <input value={longformInput} onChange={(event) => setLongformInput(event.target.value)} placeholder="Paste article/longform text..." />
+          </label>
         </div>
         <div className="jobs-controls__actions">
           <button className="shell__nav-link" type="button" disabled={controlsBusy} onClick={() => void queuePresetJob("smoke_test")}>
@@ -758,6 +774,9 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
           </button>
           <button className="shell__nav-link" type="button" disabled={controlsBusy} onClick={() => void queuePresetJob("youtube_upload")}>
             Run YouTube upload
+          </button>
+          <button className="shell__nav-link" type="button" disabled={controlsBusy} onClick={() => void queuePresetJob("youtube_upload_longform")}>
+            Run Longform Short
           </button>
           <button className="shell__nav-link" type="button" disabled={controlsBusy} onClick={() => void queuePresetJob("afm_pitch")}>
             Run Affiliate pitch

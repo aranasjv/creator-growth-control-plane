@@ -65,9 +65,14 @@ def run_youtube(account_id: str) -> dict:
         account["niche"],
         account["language"],
     )
+    
+    from config import get_job_parameters
+    params = get_job_parameters()
+    longform_content = params.get("longform_content", None)
+
     try:
         tts = TTS()
-        video_path = youtube.generate_video(tts)
+        video_path = youtube.generate_video(tts, longform_content=longform_content)
         uploaded = youtube.upload_video()
         if not uploaded:
             reason = getattr(youtube, "last_upload_error", None) or "No additional details were reported."
