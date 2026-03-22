@@ -1,8 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { readSettings, saveSettings, readPrompts, savePrompt, createPrompt, deletePrompt, type GlobalSettings, type SystemPrompt } from "@/lib/api";
+
+type ModelProvider = "ollama" | "openai" | "gemini";
+
+const PROVIDER_MODEL_FALLBACKS: Record<ModelProvider, string[]> = {
+  ollama: ["llama3.2:3b", "llama3.2:1b", "qwen2.5:7b", "mistral:7b", "gemma2:9b"],
+  openai: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"],
+  gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+};
+
+const PROVIDER_LABELS: Record<ModelProvider, string> = {
+  ollama: "Ollama (Local)",
+  openai: "OpenAI",
+  gemini: "Gemini",
+};
+
+function normalizeProvider(provider: string): ModelProvider {
+  if (provider === "openai" || provider === "gemini" || provider === "ollama") {
+    return provider;
+  }
+  return "ollama";
+}
+
+function maskApiKey(value?: string | null): string | null {
+  if (!value || value.trim().length === 0) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length <= 8) {
+    return "********";
+  }
+  return `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+}
+
+function getModelForProvider(settings: GlobalSettings, provider: ModelProvider): string {
+  if (provider === "openai") return settings.openAIModelName;
+  if (provider === "gemini") return settings.geminiModelName;
+  return settings.ollamaModelName;
+}
+
+function setModelForProvider(settings: GlobalSettings, provider: ModelProvider, model: string): GlobalSettings {
+  if (provider === "openai") return { ...settings, openAIModelName: model };
+  if (provider === "gemini") return { ...settings, geminiModelName: model };
+  return { ...settings, ollamaModelName: model };
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<"global" | "prompts">("global");
@@ -93,6 +137,33 @@ export default function SettingsPage() {
     }
   };
 
+  const activeProvider = settings ? normalizeProvider(settings.activeModelProvider) : "ollama";
+
+  const modelCatalog = useMemo(() => {
+    const raw = settings?.modelCatalog ?? {};
+    return {
+      ollama: raw.ollama && raw.ollama.length > 0 ? raw.ollama : PROVIDER_MODEL_FALLBACKS.ollama,
+      openai: raw.openai && raw.openai.length > 0 ? raw.openai : PROVIDER_MODEL_FALLBACKS.openai,
+      gemini: raw.gemini && raw.gemini.length > 0 ? raw.gemini : PROVIDER_MODEL_FALLBACKS.gemini,
+    };
+  }, [settings]);
+
+  const activeModelOptions = modelCatalog[activeProvider];
+  const activeModelValue = settings ? getModelForProvider(settings, activeProvider) : "";
+  const selectedActiveModel = activeModelOptions.includes(activeModelValue) ? activeModelValue : activeModelOptions[0];
+
+  const openAIKeyConfigured = settings ? (settings.hasOpenAIApiKey ?? Boolean(settings.openAIApiKey?.trim())) : false;
+  const geminiKeyConfigured = settings ? (settings.hasGeminiApiKey ?? Boolean(settings.geminiApiKey?.trim())) : false;
+
+  const activeApiKeyConfigured =
+    activeProvider === "openai" ? openAIKeyConfigured :
+    activeProvider === "gemini" ? geminiKeyConfigured :
+    true;
+  const activeApiKeyMasked =
+    activeProvider === "openai" ? maskApiKey(settings?.openAIApiKey) :
+    activeProvider === "gemini" ? maskApiKey(settings?.geminiApiKey) :
+    null;
+
   return (
     <AppShell
       current="/settings"
@@ -121,45 +192,99 @@ export default function SettingsPage() {
             <form onSubmit={handleSaveSettings} className="jobs-controls__fields" style={{ padding: "0 1.5rem 1.5rem" }}>
               <label className="jobs-controls__field">
                 <span>Active Model Provider</span>
-                <select 
-                  value={settings.activeModelProvider} 
-                  onChange={(e) => setSettings({ ...settings, activeModelProvider: e.target.value })}
+                <select
+                  value={activeProvider}
+                  onChange={(e) => {
+                    const nextProvider = normalizeProvider(e.target.value);
+                    const nextOptions = modelCatalog[nextProvider];
+                    const currentValue = getModelForProvider(settings, nextProvider);
+                    const nextValue = nextOptions.includes(currentValue) ? currentValue : nextOptions[0];
+
+                    const nextSettings = setModelForProvider(
+                      { ...settings, activeModelProvider: nextProvider },
+                      nextProvider,
+                      nextValue,
+                    );
+                    setSettings(nextSettings);
+                  }}
                   style={{ width: "100%", padding: "8px", background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "6px" }}
                 >
-                  <option value="ollama">Ollama (Local)</option>
-                  <option value="openai">OpenAI</option>
-                  <option value="gemini">Gemini</option>
+                  {(Object.keys(PROVIDER_LABELS) as ModelProvider[]).map((provider) => (
+                    <option key={provider} value={provider}>
+                      {PROVIDER_LABELS[provider]}
+                    </option>
+                  ))}
                 </select>
               </label>
-              
-              <label className="jobs-controls__field">
-                <span>Ollama Model Name</span>
-                <input 
-                  value={settings.ollamaModelName || ""} 
-                  onChange={(e) => setSettings({ ...settings, ollamaModelName: e.target.value })} 
-                  placeholder="e.g. llama3" 
-                />
-              </label>
 
               <label className="jobs-controls__field">
-                <span>OpenAI API Key</span>
-                <input 
-                  type="password"
-                  value={settings.openAIApiKey || ""} 
-                  onChange={(e) => setSettings({ ...settings, openAIApiKey: e.target.value })} 
-                  placeholder="sk-..." 
-                />
+                <span>{PROVIDER_LABELS[activeProvider]} Model Picker</span>
+                <select
+                  value={selectedActiveModel}
+                  onChange={(e) => setSettings(setModelForProvider(settings, activeProvider, e.target.value))}
+                  style={{ width: "100%", padding: "8px", background: "var(--color-surface)", color: "var(--color-text)", border: "1px solid var(--color-border)", borderRadius: "6px" }}
+                >
+                  {activeModelOptions.map((modelName) => (
+                    <option key={modelName} value={modelName}>
+                      {modelName}
+                    </option>
+                  ))}
+                </select>
+                <small className="shell__note">Only valid models for {PROVIDER_LABELS[activeProvider]} are shown.</small>
               </label>
 
-              <label className="jobs-controls__field">
-                <span>Gemini API Key</span>
-                <input 
-                  type="password"
-                  value={settings.geminiApiKey || ""} 
-                  onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })} 
-                  placeholder="AIza..." 
-                />
-              </label>
+              <div className="jobs-controls__field" style={{ background: "var(--surface-1)", border: "1px solid var(--line)", borderRadius: "10px", padding: "0.9rem" }}>
+                <span style={{ display: "block", marginBottom: "0.3rem", fontWeight: 600 }}>API Key In Global Settings</span>
+                {activeProvider === "ollama" ? (
+                  <p className="shell__note" style={{ margin: 0 }}>No API key required for local Ollama.</p>
+                ) : (
+                  <p className="shell__note" style={{ margin: 0 }}>
+                    {activeApiKeyConfigured ? `Configured (${activeApiKeyMasked ?? "masked"})` : "Not configured yet"}
+                  </p>
+                )}
+              </div>
+
+              {activeProvider === "openai" && (
+                <label className="jobs-controls__field">
+                  <span>OpenAI API Key</span>
+                  <input
+                    type="password"
+                    value={settings.openAIApiKey || ""}
+                    onChange={(e) => setSettings({ ...settings, openAIApiKey: e.target.value })}
+                    placeholder="sk-..."
+                  />
+                </label>
+              )}
+
+              {activeProvider === "gemini" && (
+                <label className="jobs-controls__field">
+                  <span>Gemini API Key</span>
+                  <input
+                    type="password"
+                    value={settings.geminiApiKey || ""}
+                    onChange={(e) => setSettings({ ...settings, geminiApiKey: e.target.value })}
+                    placeholder="AIza..."
+                  />
+                </label>
+              )}
+
+              <div className="jobs-controls__field">
+                <span>Provider Key Status</span>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.6rem" }}>
+                  <div style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "0.65rem" }}>
+                    <strong>OpenAI</strong>
+                    <p className="shell__note" style={{ margin: "0.35rem 0 0" }}>
+                      {openAIKeyConfigured ? `Configured (${maskApiKey(settings.openAIApiKey) ?? "masked"})` : "Not configured"}
+                    </p>
+                  </div>
+                  <div style={{ border: "1px solid var(--line)", borderRadius: "8px", padding: "0.65rem" }}>
+                    <strong>Gemini</strong>
+                    <p className="shell__note" style={{ margin: "0.35rem 0 0" }}>
+                      {geminiKeyConfigured ? `Configured (${maskApiKey(settings.geminiApiKey) ?? "masked"})` : "Not configured"}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <div className="jobs-controls__actions" style={{ marginTop: "1rem", borderTop: "none", padding: "0" }}>
                 <button type="submit" className="shell__nav-link" disabled={isSavingSettings}>

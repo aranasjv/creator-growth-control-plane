@@ -12,6 +12,27 @@ REDIS_URL = os.environ.get("CGCP_REDIS_URL", "redis://localhost:6379/0")
 # Setup redis client
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
+DEFAULT_MODEL_CATALOG: Dict[str, List[str]] = {
+    "ollama": [
+        "llama3.2:3b",
+        "llama3.2:1b",
+        "qwen2.5:7b",
+        "mistral:7b",
+        "gemma2:9b",
+    ],
+    "openai": [
+        "gpt-4o-mini",
+        "gpt-4.1-mini",
+        "gpt-4.1",
+        "gpt-4o",
+    ],
+    "gemini": [
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-flash",
+    ],
+}
+
 def get_settings() -> Dict[str, Any]:
     try:
         if redis_client.exists("cgcp:settings"):
@@ -80,7 +101,34 @@ def select_model(model_name: str):
     _selected_model = model_name
 
 
+def _resolve_model_catalog(settings: Dict[str, Any]) -> Dict[str, List[str]]:
+    raw_catalog = settings.get("modelCatalog") or settings.get("ModelCatalog") or {}
+    if not isinstance(raw_catalog, dict):
+        raw_catalog = {}
+
+    resolved: Dict[str, List[str]] = {}
+    for provider, defaults in DEFAULT_MODEL_CATALOG.items():
+        configured = raw_catalog.get(provider)
+        if isinstance(configured, list):
+            cleaned = [str(item).strip() for item in configured if str(item).strip()]
+            resolved[provider] = cleaned or defaults
+        else:
+            resolved[provider] = defaults
+    return resolved
+
+
+def _pick_known_model(provider: str, candidate: str | None, catalog: Dict[str, List[str]]) -> str:
+    options = catalog.get(provider) or DEFAULT_MODEL_CATALOG[provider]
+    lookup = (candidate or "").strip().lower()
+    if lookup:
+        for model in options:
+            if model.lower() == lookup:
+                return model
+    return options[0]
+
+
 def _normalize_model_for_provider(provider: str, requested_model: str | None, settings: Dict[str, Any]) -> str:
+    catalog = _resolve_model_catalog(settings)
     model = (requested_model or "").strip()
 
     if provider == "openai":
@@ -90,8 +138,7 @@ def _normalize_model_for_provider(provider: str, requested_model: str | None, se
             or settings.get("openAiModelName")
             or ""
         ).strip()
-        candidate = model or configured
-        return candidate if candidate.lower().startswith("gpt-") else "gpt-4o-mini"
+        return _pick_known_model("openai", model or configured, catalog)
 
     if provider == "gemini":
         configured = str(
@@ -99,11 +146,10 @@ def _normalize_model_for_provider(provider: str, requested_model: str | None, se
             or settings.get("GeminiModelName")
             or ""
         ).strip()
-        candidate = model or configured
-        return candidate if candidate.lower().startswith("gemini") else "gemini-2.5-flash"
+        return _pick_known_model("gemini", model or configured, catalog)
 
     configured = str(settings.get("ollamaModelName") or settings.get("OllamaModelName") or "").strip()
-    return model or configured or "llama3"
+    return _pick_known_model("ollama", model or configured, catalog)
 
 def generate_text(prompt: str, model_name: str = None) -> str:
     settings = get_settings()

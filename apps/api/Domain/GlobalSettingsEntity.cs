@@ -19,5 +19,11 @@ public sealed class GlobalSettingsEntity
     public string ActiveModelProvider { get; set; } = "ollama"; // "ollama", "openai", "gemini"
 
     [MaxLength(128)]
-    public string OllamaModelName { get; set; } = "llama3";
+    public string OllamaModelName { get; set; } = "llama3.2:3b";
+
+    [MaxLength(128)]
+    public string OpenAIModelName { get; set; } = "gpt-4o-mini";
+
+    [MaxLength(128)]
+    public string GeminiModelName { get; set; } = "gemini-2.5-flash";
 }

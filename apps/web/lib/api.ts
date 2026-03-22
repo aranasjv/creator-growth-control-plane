@@ -282,8 +282,15 @@ export function formatMoney(value: number, currency = "USD"): string {
 export type GlobalSettings = {
   openAIApiKey?: string | null;
   geminiApiKey?: string | null;
+  hasOpenAIApiKey?: boolean;
+  hasGeminiApiKey?: boolean;
+  activeProviderApiKeyConfigured?: boolean;
+  activeProviderApiKeyMasked?: string | null;
   activeModelProvider: string;
   ollamaModelName: string;
+  openAIModelName: string;
+  geminiModelName: string;
+  modelCatalog?: Record<string, string[]>;
 };
 
 export type SystemPrompt = {
@@ -297,7 +304,14 @@ export type SystemPrompt = {
 export async function readSettings(): Promise<GlobalSettings> {
   return readJson<GlobalSettings>("/api/settings", {
     activeModelProvider: "ollama",
-    ollamaModelName: "llama3",
+    ollamaModelName: "llama3.2:3b",
+    openAIModelName: "gpt-4o-mini",
+    geminiModelName: "gemini-2.5-flash",
+    modelCatalog: {
+      ollama: ["llama3.2:3b", "llama3.2:1b", "qwen2.5:7b", "mistral:7b", "gemma2:9b"],
+      openai: ["gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"],
+      gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+    },
   });
 }
 

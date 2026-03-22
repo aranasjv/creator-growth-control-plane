@@ -82,6 +82,12 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<CreatorGrowthControlPlaneDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await db.Database.ExecuteSqlRawAsync(
+        @"ALTER TABLE ""GlobalSettings""
+          ADD COLUMN IF NOT EXISTS ""OpenAIModelName"" character varying(128) NOT NULL DEFAULT 'gpt-4o-mini';");
+    await db.Database.ExecuteSqlRawAsync(
+        @"ALTER TABLE ""GlobalSettings""
+          ADD COLUMN IF NOT EXISTS ""GeminiModelName"" character varying(128) NOT NULL DEFAULT 'gemini-2.5-flash';");
 
     var legacySync = scope.ServiceProvider.GetRequiredService<LegacyCacheSyncService>();
     await legacySync.SyncAsync();

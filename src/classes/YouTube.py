@@ -341,6 +341,27 @@ class YouTube:
 
         return image_prompts
 
+    def _enhance_visual_prompt(self, prompt: str) -> str:
+        """
+        Appends a stable visual style directive to keep generated shots
+        closer to high-retention short-form aesthetics.
+
+        Args:
+            prompt (str): Base prompt generated from script context
+
+        Returns:
+            enhanced_prompt (str): Prompt with style constraints
+        """
+        style_directive = (
+            "Vertical 9:16, cinematic close-up composition, expressive 3D animated subject, "
+            "high detail, dramatic soft lighting, shallow depth of field, tactile textures, "
+            "high contrast, emotional framing, no text overlay, no watermark."
+        )
+        base = str(prompt or "").strip()
+        if not base:
+            return style_directive
+        return f"{base}. {style_directive}"
+
     def _persist_image(self, image_bytes: bytes, provider_label: str) -> str:
         """
         Writes generated image bytes to a PNG file in .mp.
@@ -434,7 +455,8 @@ class YouTube:
         Returns:
             path (str): The path to the generated image.
         """
-        generated = self.generate_image_nanobanana2(prompt)
+        enhanced_prompt = self._enhance_visual_prompt(prompt)
+        generated = self.generate_image_nanobanana2(enhanced_prompt)
         if generated:
             return generated
 
@@ -650,12 +672,13 @@ class YouTube:
         generator = lambda txt: TextClip(
             txt,
             font=os.path.join(get_fonts_dir(), get_font()),
-            fontsize=100,
-            color="#FFFF00",
+            fontsize=72,
+            color="#FFFFFF",
             stroke_color="black",
-            stroke_width=5,
-            size=(1080, 1920),
+            stroke_width=3,
+            size=(980, None),
             method="caption",
+            align="center",
         )
 
         print(colored("[+] Combining images...", "blue"))
@@ -706,9 +729,9 @@ class YouTube:
         subtitles = None
         try:
             subtitles_path = self.generate_subtitles(self.tts_path)
-            equalize_subtitles(subtitles_path, 10)
+            equalize_subtitles(subtitles_path, 18)
             subtitles = SubtitlesClip(subtitles_path, generator)
-            subtitles.set_pos(("center", "center"))
+            subtitles = subtitles.set_pos(("center", 240))
         except Exception as e:
             warning(f"Failed to generate subtitles, continuing without subtitles: {e}")
 
@@ -721,8 +744,33 @@ class YouTube:
         final_clip = final_clip.set_audio(comp_audio)
         final_clip = final_clip.set_duration(tts_clip.duration)
 
+        overlays = [final_clip]
+
+        hook_text = str(self.metadata.get("title") or "").strip()
+        if hook_text:
+            hook_words = hook_text.split()
+            hook_text = " ".join(hook_words[:3]).upper()
+            try:
+                hook_clip = TextClip(
+                    hook_text,
+                    font=os.path.join(get_fonts_dir(), get_font()),
+                    fontsize=120,
+                    color="#FFFFFF",
+                    stroke_color="black",
+                    stroke_width=6,
+                    size=(980, None),
+                    method="caption",
+                    align="center",
+                ).set_position(("center", 70)).set_duration(tts_clip.duration)
+                overlays.append(hook_clip)
+            except Exception:
+                pass
+
         if subtitles is not None:
-            final_clip = CompositeVideoClip([final_clip, subtitles])
+            overlays.append(subtitles)
+
+        if len(overlays) > 1:
+            final_clip = CompositeVideoClip(overlays)
 
         # Suppress ffmpeg progress spam to keep worker event streams readable.
         final_clip.write_videofile(
