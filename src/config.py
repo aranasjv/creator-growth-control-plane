@@ -160,6 +160,334 @@ def get_nanobanana2_aspect_ratio() -> str:
     with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
         return json.load(file).get("nanobanana2_aspect_ratio", "9:16")
 
+def get_nanobanana2_timeout_seconds() -> int:
+    """
+    Gets read timeout for Nano Banana image generation calls.
+
+    Returns:
+        timeout (int): Timeout in seconds
+    """
+    override = os.environ.get("CGCP_NANOBANANA2_TIMEOUT_SECONDS")
+    if override:
+        try:
+            return max(30, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(30, int(json.load(file).get("nanobanana2_timeout_seconds", 120) or 120))
+
+def _to_bool(value: object, default: bool = False) -> bool:
+    """
+    Coerces common textual values into bool.
+
+    Args:
+        value (object): Candidate value
+        default (bool): Fallback value when empty/unknown
+
+    Returns:
+        parsed (bool): Parsed boolean
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+def get_video_quality_mode() -> str:
+    """
+    Gets the video quality mode.
+
+    Returns:
+        mode (str): Quality mode ('standard' or 'hq_hybrid')
+    """
+    override = os.environ.get("CGCP_VIDEO_QUALITY_MODE", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("video_quality_mode", "hq_hybrid"))
+
+def get_video_image_provider() -> str:
+    """
+    Gets the image generation provider used in the video pipeline.
+
+    Returns:
+        provider (str): 'gemini' or 'fal'
+    """
+    override = os.environ.get("CGCP_VIDEO_IMAGE_PROVIDER", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("video_image_provider", "gemini")).strip()
+
+def get_video_motion_provider() -> str:
+    """
+    Gets the motion generation provider used in the video pipeline.
+
+    Returns:
+        provider (str): 'gemini_veo31', 'fal_veo3', or 'none'
+    """
+    override = os.environ.get("CGCP_VIDEO_MOTION_PROVIDER", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("video_motion_provider", "gemini_veo31")).strip()
+
+def get_fal_api_key() -> str:
+    """
+    Gets the fal API key.
+
+    Returns:
+        key (str): API key
+    """
+    env_key = os.environ.get("FAL_KEY", "").strip()
+    if env_key:
+        return env_key
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_api_key", "")).strip()
+
+def get_fal_image_model() -> str:
+    """
+    Gets the fal image model.
+
+    Returns:
+        model (str): fal model id
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_image_model", "fal-ai/nano-banana-pro")).strip()
+
+def get_fal_image_size() -> str:
+    """
+    Gets the fal image size enum.
+
+    Returns:
+        image_size (str): Image size enum
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_image_size", "portrait_16_9")).strip()
+
+def get_fal_enable_veo_motion() -> bool:
+    """
+    Gets whether Veo image-to-video enhancement is enabled.
+
+    Returns:
+        enabled (bool): True when enabled
+    """
+    override = os.environ.get("CGCP_ENABLE_VEO_MOTION")
+    if override is not None:
+        return _to_bool(override, default=False)
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        payload = json.load(file)
+        if "video_enable_motion" in payload:
+            return _to_bool(payload.get("video_enable_motion"), default=False)
+        return _to_bool(payload.get("fal_enable_veo_motion", False), default=False)
+
+def get_fal_veo_model() -> str:
+    """
+    Gets the fal Veo image-to-video model.
+
+    Returns:
+        model (str): fal model id
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_veo_model", "fal-ai/veo3/image-to-video")).strip()
+
+def get_fal_veo_duration() -> str:
+    """
+    Gets Veo clip duration.
+
+    Returns:
+        duration (str): Duration enum (e.g. '4s', '6s', '8s')
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_veo_duration", "4s")).strip()
+
+def get_fal_veo_resolution() -> str:
+    """
+    Gets Veo resolution.
+
+    Returns:
+        resolution (str): Resolution enum
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("fal_veo_resolution", "1080p")).strip()
+
+def get_fal_veo_generate_audio() -> bool:
+    """
+    Gets whether Veo should generate native audio.
+
+    Returns:
+        enabled (bool): True when enabled
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return _to_bool(json.load(file).get("fal_veo_generate_audio", False), default=False)
+
+def get_fal_motion_clip_limit() -> int:
+    """
+    Gets the max number of Veo motion clips to generate per short.
+
+    Returns:
+        limit (int): Max motion clips
+    """
+    override = os.environ.get("CGCP_FAL_MOTION_CLIP_LIMIT")
+    if override:
+        try:
+            return max(0, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(0, int(json.load(file).get("fal_motion_clip_limit", 2) or 2))
+
+def get_fal_client_timeout() -> int:
+    """
+    Gets fal client timeout in seconds.
+
+    Returns:
+        timeout (int): Timeout seconds
+    """
+    override = os.environ.get("CGCP_FAL_CLIENT_TIMEOUT")
+    if override:
+        try:
+            return max(60, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(60, int(json.load(file).get("fal_client_timeout", 900) or 900))
+
+def get_gemini_veo_model() -> str:
+    """
+    Gets the Gemini Veo model id.
+
+    Returns:
+        model (str): Model id
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("gemini_veo_model", "veo-3.1-fast-generate-preview")).strip()
+
+def get_gemini_veo_duration_seconds() -> int:
+    """
+    Gets the Gemini Veo clip duration in seconds.
+
+    Returns:
+        duration (int): 4, 6, or 8
+    """
+    override = os.environ.get("CGCP_GEMINI_VEO_DURATION_SECONDS")
+    if override:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return int(json.load(file).get("gemini_veo_duration_seconds", 4) or 4)
+
+def get_gemini_veo_resolution() -> str:
+    """
+    Gets the Gemini Veo output resolution.
+
+    Returns:
+        resolution (str): 720p, 1080p, or 4k
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("gemini_veo_resolution", "720p")).strip()
+
+def get_gemini_veo_aspect_ratio() -> str:
+    """
+    Gets the Gemini Veo output aspect ratio.
+
+    Returns:
+        ratio (str): 16:9 or 9:16
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("gemini_veo_aspect_ratio", "9:16")).strip()
+
+def get_gemini_veo_timeout_seconds() -> int:
+    """
+    Gets the maximum wait time for a Gemini Veo operation.
+
+    Returns:
+        timeout (int): Seconds
+    """
+    override = os.environ.get("CGCP_GEMINI_VEO_TIMEOUT_SECONDS")
+    if override:
+        try:
+            return max(60, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(60, int(json.load(file).get("gemini_veo_timeout_seconds", 900) or 900))
+
+def get_gemini_veo_poll_interval_seconds() -> int:
+    """
+    Gets how often to poll Gemini Veo operations.
+
+    Returns:
+        interval (int): Seconds
+    """
+    override = os.environ.get("CGCP_GEMINI_VEO_POLL_INTERVAL_SECONDS")
+    if override:
+        try:
+            return max(3, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(3, int(json.load(file).get("gemini_veo_poll_interval_seconds", 10) or 10))
+
+def get_gemini_veo_download_timeout_seconds() -> int:
+    """
+    Gets the maximum download time for large Veo output files.
+
+    Returns:
+        timeout (int): Timeout in seconds
+    """
+    override = os.environ.get("CGCP_GEMINI_VEO_DOWNLOAD_TIMEOUT_SECONDS")
+    if override:
+        try:
+            return max(120, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(120, int(json.load(file).get("gemini_veo_download_timeout_seconds", 1800) or 1800))
+
+def get_video_download_stall_timeout_seconds() -> int:
+    """
+    Gets the maximum allowed period without file size growth while downloading video assets.
+
+    Returns:
+        timeout (int): Stall timeout in seconds
+    """
+    override = os.environ.get("CGCP_VIDEO_DOWNLOAD_STALL_TIMEOUT_SECONDS")
+    if override:
+        try:
+            return max(30, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(30, int(json.load(file).get("video_download_stall_timeout_seconds", 180) or 180))
+
+def get_video_subtitle_y() -> int:
+    """
+    Gets subtitle Y anchor position in vertical frame.
+
+    Returns:
+        y (int): Subtitle Y
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return int(json.load(file).get("video_subtitle_y", 1520))
+
+def get_video_hook_y() -> int:
+    """
+    Gets hook text Y anchor position in vertical frame.
+
+    Returns:
+        y (int): Hook Y
+    """
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return int(json.load(file).get("video_hook_y", 64))
+
 def get_threads() -> int:
     """
     Gets the amount of threads to use for example when writing to a file with MoviePy.
@@ -407,6 +735,109 @@ def get_tts_voice() -> str:
     with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
         return json.load(file).get("tts_voice", "Jasper")
 
+def get_tts_provider() -> str:
+    """
+    Gets the preferred TTS provider.
+
+    Returns:
+        provider (str): 'auto', 'openai', or 'edge'
+    """
+    override = os.environ.get("CGCP_TTS_PROVIDER", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("tts_provider", "auto")).strip()
+
+def get_tts_openai_model() -> str:
+    """
+    Gets the OpenAI TTS model.
+
+    Returns:
+        model (str): OpenAI TTS model id
+    """
+    override = os.environ.get("CGCP_TTS_OPENAI_MODEL", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("tts_openai_model", "gpt-4o-mini-tts")).strip()
+
+def get_tts_openai_voice() -> str:
+    """
+    Gets the OpenAI TTS voice.
+
+    Returns:
+        voice (str): OpenAI voice id
+    """
+    override = os.environ.get("CGCP_TTS_OPENAI_VOICE", "").strip()
+    if override:
+        return override
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("tts_openai_voice", "verse")).strip()
+
+def get_tts_openai_speed() -> float:
+    """
+    Gets OpenAI TTS speed multiplier.
+
+    Returns:
+        speed (float): Speech speed multiplier
+    """
+    override = os.environ.get("CGCP_TTS_OPENAI_SPEED", "").strip()
+    if override:
+        try:
+            return float(override)
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        raw = json.load(file).get("tts_openai_speed", 1.0)
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return 1.0
+
+def get_tts_openai_instructions() -> str:
+    """
+    Gets OpenAI TTS speaking instructions.
+
+    Returns:
+        instructions (str): Prompt instructions for voice style
+    """
+    default_instructions = (
+        "Speak naturally like a real person with warm, expressive pacing. "
+        "Handle Filipino and English code-switching smoothly, with clear pronunciation "
+        "and natural sentence rhythm. Avoid robotic cadence."
+    )
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("tts_openai_instructions", default_instructions)).strip()
+
+def get_openai_api_key() -> str:
+    """
+    Gets OpenAI API key.
+
+    Returns:
+        key (str): API key
+    """
+    env_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if env_key:
+        return env_key
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("openai_api_key", "")).strip()
+
+def get_youtube_upload_confirm_timeout_seconds() -> int:
+    """
+    Gets timeout used to verify uploaded videos in YouTube Studio.
+
+    Returns:
+        timeout (int): Timeout seconds
+    """
+    override = os.environ.get("CGCP_YOUTUBE_UPLOAD_CONFIRM_TIMEOUT_SECONDS", "").strip()
+    if override:
+        try:
+            return max(60, int(override))
+        except ValueError:
+            pass
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(60, int(json.load(file).get("youtube_upload_confirm_timeout_seconds", 420) or 420))
+
 def get_assemblyai_api_key() -> str:
     """
     Gets the AssemblyAI API key.
@@ -513,4 +944,67 @@ def get_script_sentence_length() -> int:
             return config_json["script_sentence_length"]
         else:
             return 4
+
+def get_youtube_image_prompt_max_count() -> int:
+    """
+    Gets max image prompt count per YouTube short.
+
+    Returns:
+        count (int): Max prompt count
+    """
+    override = os.environ.get("CGCP_YOUTUBE_IMAGE_PROMPT_MAX_COUNT")
+    if override:
+        try:
+            return max(1, int(override))
+        except ValueError:
+            pass
+
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(1, int(json.load(file).get("youtube_image_prompt_max_count", 8) or 8))
+
+def get_youtube_max_short_duration_seconds() -> int:
+    """
+    Gets maximum allowed duration for generated YouTube shorts.
+
+    Returns:
+        seconds (int): Max duration in seconds
+    """
+    override = os.environ.get("CGCP_YOUTUBE_MAX_SHORT_DURATION_SECONDS")
+    if override:
+        try:
+            return max(15, int(override))
+        except ValueError:
+            pass
+
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return max(15, int(json.load(file).get("youtube_max_short_duration_seconds", 60) or 60))
+
+def get_youtube_script_language() -> str:
+    """
+    Gets forced script language for YouTube generation.
+
+    Returns:
+        language (str): Script language (e.g. 'Filipino')
+    """
+    override = os.environ.get("CGCP_YOUTUBE_SCRIPT_LANGUAGE", "").strip()
+    if override:
+        return override
+
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        return str(json.load(file).get("youtube_script_language", "")).strip()
+
+def get_youtube_subtitle_source() -> str:
+    """
+    Gets subtitle generation source for YouTube shorts.
+
+    Returns:
+        source (str): 'script' or 'stt'
+    """
+    override = os.environ.get("CGCP_YOUTUBE_SUBTITLE_SOURCE", "").strip().lower()
+    if override in {"script", "stt"}:
+        return override
+
+    with open(os.path.join(ROOT_DIR, "config.json"), "r") as file:
+        configured = str(json.load(file).get("youtube_subtitle_source", "script")).strip().lower()
+        return configured if configured in {"script", "stt"} else "script"
 

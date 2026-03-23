@@ -18,4 +18,7 @@ undetected_chromedriver
 platformdirs
 openai
 google-generativeai
+google-genai
 redis
+fal-client
+edge-tts

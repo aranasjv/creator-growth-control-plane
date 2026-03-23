@@ -632,6 +632,7 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
             model: modelInput.trim() || null,
             parameters: {
               source: "jobs-dashboard",
+              timeoutSeconds: "10800",
             },
           };
         } else if (preset === "youtube_upload_longform") {
@@ -642,7 +643,9 @@ export function JobsLiveMonitor({ initialJobs }: JobsLiveMonitorProps) {
             model: modelInput.trim() || null,
             parameters: {
               source: "jobs-dashboard",
+              use_longform: true,
               longform_content: longformInput.trim(),
+              timeoutSeconds: "14400",
             },
           };
         } else {

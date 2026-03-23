@@ -31,6 +31,19 @@ def configure_model(model_name: str | None) -> str | None:
     return selected
 
 
+def _as_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
 def run_twitter(account_id: str) -> dict:
     from classes.Twitter import Twitter
 
@@ -64,6 +77,15 @@ def run_youtube(account_id: str) -> dict:
     topic_seed = (account.get("topic") or account.get("niche") or "").strip()
     if not topic_seed:
         raise ValueError("YouTube account is missing both topic and niche.")
+    from config import get_job_parameters
+    params = get_job_parameters()
+    manual_topic = str(params.get("topic_override") or params.get("topic") or "").strip()
+    forced_topic = manual_topic or topic_seed
+    allow_topic_generation = _as_bool(params.get("allow_topic_generation"), default=False)
+    longform_raw = str(params.get("longform_content") or "").strip()
+    use_longform = _as_bool(params.get("use_longform"), default=bool(longform_raw))
+    longform_content = longform_raw if use_longform and longform_raw else None
+
     fetch_songs()
     youtube = YouTube(
         account["id"],
@@ -71,11 +93,9 @@ def run_youtube(account_id: str) -> dict:
         account["firefox_profile"],
         topic_seed,
         account["language"],
+        forced_topic=forced_topic,
+        allow_topic_generation=allow_topic_generation,
     )
-    
-    from config import get_job_parameters
-    params = get_job_parameters()
-    longform_content = params.get("longform_content", None)
 
     try:
         tts = TTS()
